@@ -1,3 +1,2 @@
 raw_data/
-.env
-.python-version
+*.csv
