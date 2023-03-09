@@ -107,3 +107,11 @@ export GCR_REGION="europe-west1"
 # Deploy your API to cloud run
 gcloud run deploy --image $GCR_MULTI_REGION/$GCP_PROJECT_ID/$DOCKER_IMAGE_NAME --platform managed --region $GCR_REGION
 ```
+
+
+
+
+Quick rebuild
+```
+docker build -t NAME .; docker run -p 8080:8000 NAME
+```

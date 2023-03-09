@@ -1,4 +1,8 @@
 from fastapi import FastAPI
+from fastapi import File
+from fastapi import UploadFile
+from PIL import Image
+import numpy as np
 
 api = FastAPI()
 
@@ -18,3 +22,8 @@ def predict(feature1, feature2):
     # In a real life setting, you would return the predictions.
 
     return {'prediction': int(feature1)*int(feature2)}
+
+
+@api.post("/what-to-eat")
+async def what_to_eat(file: UploadFile = File(...)):
+    return {'file': file}
