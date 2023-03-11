@@ -26,4 +26,5 @@ def predict(feature1, feature2):
 
 @api.post("/what-to-eat")
 async def what_to_eat(file: UploadFile = File(...)):
+    # TODO return recipes from photo.
     return {'file': file}

@@ -14,7 +14,7 @@ if uploaded_file is not None:
     # files = {'upload_file': uploaded_file}
     values = {'DB': 'photcat', 'OUT': 'csv', 'SHORT': 'short'}
 
-    if st.button('What can I eat?'):
+    if st.button('What can I eat?', type="primary"):
         st.write('Hurry I am hungry ...')
         r = requests.post(url, files=files, data=values)
 
