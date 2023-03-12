@@ -5,8 +5,14 @@ Package that contains functions for cleaning and querying our datasets
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+
+from whoosh import index
+from whoosh.fields import Schema, TEXT, KEYWORD, ID
+from whoosh.qparses import QueryParser
+
 import os
-import whoosh.index
+from project_cook.params import *
+
 
 def load_data():
     pass
@@ -37,7 +43,7 @@ def query_data(df,
         line = line.strip().split(',')
         if len(line) == 7:
             lines.append(line)
-        if len(lines) == chunk_size:
+        if len(lines) == CHUNK_SIZE:
             for l in lines:
                 writer.add_document(title=l[1],
                                     ingredients=l[2],
