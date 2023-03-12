@@ -15,8 +15,8 @@ def preprocess(min_date:str = '2009-01-01', max_date:str = '2015-01-01') -> None
 
     print(Fore.MAGENTA + "\n ⭐️ Use case: preprocess" + Style.RESET_ALL)
 
-    from recipes.ml_logic.data import get_data_with_cache, clean_data, load_data_to_bq
-    from recipes.ml_logic.preprocessor import preprocess_features
+    from cooking_recipes.ml_logic.data import get_data_with_cache, clean_data, load_data_to_bq
+    from cooking_recipes.ml_logic.preprocessor import preprocess_features
 
     # Query raw data from Big Query using `get_data_with_cache`
     min_date = parse(min_date).strftime('%Y-%m-%d') # e.g '2009-01-01'
@@ -80,9 +80,9 @@ def train(min_date:str = '2009-01-01',
     """
 
     print(Fore.MAGENTA + "\n⭐️ Use case: train" + Style.RESET_ALL)
-    from recipes.ml_logic.data import get_data_with_cache
-    from recipes.ml_logic.registry import load_model, save_model, save_results
-    from recipes.ml_logic.model import initialize_model, compile_model, train_model
+    from cooking_recipes.ml_logic.data import get_data_with_cache
+    from cooking_recipes.ml_logic.registry import load_model, save_model, save_results
+    from cooking_recipes.ml_logic.model import initialize_model, compile_model, train_model
 
     print(Fore.BLUE + "\nLoading preprocessed validation data..." + Style.RESET_ALL)
 
@@ -159,9 +159,9 @@ def evaluate(min_date:str = '2014-01-01',
     Return mae as float
     """
     print(Fore.MAGENTA + "\n⭐️ Use case: evaluate" + Style.RESET_ALL)
-    from recipes.ml_logic.data import get_data_with_cache
-    from recipes.ml_logic.model import evaluate_model
-    from recipes.ml_logic.registry import load_model, save_results
+    from cooking_recipes.ml_logic.data import get_data_with_cache
+    from cooking_recipes.ml_logic.model import evaluate_model
+    from cooking_recipes.ml_logic.registry import load_model, save_results
 
     model = load_model(stage=stage)
     assert model is not None
@@ -215,8 +215,8 @@ def pred(X_pred: pd.DataFrame = None) -> np.ndarray:
 
     print("\n⭐️ Use case: predict")
 
-    from recipes.ml_logic.registry import load_model
-    from recipes.ml_logic.preprocessor import preprocess_features
+    from cooking_recipes.ml_logic.registry import load_model
+    from cooking_recipes.ml_logic.preprocessor import preprocess_features
 
     if X_pred is None:
        X_pred = pd.DataFrame(dict(

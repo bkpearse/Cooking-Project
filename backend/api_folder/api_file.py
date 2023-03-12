@@ -3,6 +3,7 @@ from fastapi import File
 from fastapi import UploadFile
 from PIL import Image
 import numpy as np
+from cooking_recipes.interface.whoosh_search import search_recipes
 
 api = FastAPI()
 
@@ -32,5 +33,4 @@ async def what_to_eat(file: UploadFile = File(...)):
 
 @api.get("/query-recipes")
 async def what_to_eat(ingredients):
-    # TODO return recipes from photo.
-    return {'recipes': ingredients}
+    return search_recipes(ingredients)

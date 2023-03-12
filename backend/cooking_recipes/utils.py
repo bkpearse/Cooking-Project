@@ -1,6 +1,6 @@
 import time
 import tracemalloc
-from recipes.params import *
+from cooking_recipes.params import *
 
 def simple_time_and_memory_tracker(method):
 

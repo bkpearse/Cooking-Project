@@ -12,11 +12,10 @@ uploaded_file = st.file_uploader("Upload a picture.", ['png', 'jpg'] )
 if uploaded_file is not None:
     files = {"file": uploaded_file.getvalue()}
     # files = {'upload_file': uploaded_file}
-    values = {'DB': 'photcat', 'OUT': 'csv', 'SHORT': 'short'}
 
     if st.button('What can I eat?', type="primary"):
         st.write('Hurry I am hungry ...')
-        r = requests.post(url, files=files, data=values)
+        r = requests.post(url, files=files)
 
         st.write(r.json())
 # Send the picture
@@ -24,3 +23,12 @@ if uploaded_file is not None:
 # Receive response
 
 # Display results.
+
+
+title = st.text_input('write some ingredients')
+if title is not None and st.button('Check ingredients', type="primary"):
+        st.write('Searching for ' + title)
+        params = {'ingredients': title}
+        r = requests.get('http://localhost:8080/query-recipes', params=params)
+
+        st.write(r.json())
