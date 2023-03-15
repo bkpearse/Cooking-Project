@@ -29,7 +29,7 @@ def query_data(df: pd.DataFrame,
                 source=TEXT(stored=True),
                 NER=TEXT(stored=True))
 
-    # Create the index or open it if it already exists
+    # Create the index or open it if it already exists, on the cloud
     if not os.path.exists("new_index"):
         os.mkdir("new_index")
         ix = index.create_in("new_index", my_schema)
@@ -54,6 +54,7 @@ def query_data(df: pd.DataFrame,
             lines = []
             writer.commit()
             writer = ix.writer()
+
     # Add any remaining lines
     for l in lines:
         writer.add_document(title=l[1],
