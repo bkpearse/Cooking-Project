@@ -29,7 +29,7 @@ def settings():
 
     # import os
     # os.chdir('/content/drive/MyDrive/Colab Notebooks/')
-    filename = 'cooking_recipes/data/full_dataset.csv'
+    filename = 'project_cook/data/full_dataset.csv'
     df = pd.read_csv(filename)
 
     # Define the schema of the index

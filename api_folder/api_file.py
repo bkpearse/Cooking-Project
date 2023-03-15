@@ -3,7 +3,7 @@ from fastapi import File
 from fastapi import UploadFile
 from PIL import Image
 import numpy as np
-from cooking_recipes.interface.whoosh_search import search_recipes
+from project_cook.interface.whoosh_search import search_recipes
 
 api = FastAPI()
 

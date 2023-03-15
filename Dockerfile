@@ -5,7 +5,7 @@ FROM python:3.8.6-buster
 # COPY allows you to select the folders and files to include in your docker image
 # Here, we will include our api_folder and the requiremenets.txt file
 COPY api_folder /api_folder
-COPY cooking_recipes /cooking_recipes
+COPY project_cook /project_cook
 COPY requirements.txt /requirements.txt
 
 # RUN allows you to run terminal commands when your image gets created
