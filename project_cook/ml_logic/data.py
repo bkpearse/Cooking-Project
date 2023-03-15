@@ -1,96 +1,81 @@
+"""
+Package that contains functions for cleaning and querying our datasets
+"""
+
 import pandas as pd
-from google.cloud import bigquery
-from colorama import Fore, Style
-from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
 
-def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    clean raw data by
-    - assigning correct dtypes to each colummns
-    - removing buggy or irrelevant transactions
-    """
-    # Compress raw_data by setting types to DTYPES_RAW
-    df = df.astype(DTYPES_RAW)
+from whoosh import index
+from whoosh.fields import Schema, TEXT, KEYWORD, ID
+from whoosh.qparses import QueryParser
 
-    # remove buggy transactions
-    df = df.drop_duplicates()  # TODO: handle in the data source if the data is consumed by chunks
-    df = df.dropna(how='any', axis=0)
-    df = df[(df.dropoff_latitude != 0) | (df.dropoff_longitude != 0) |
-            (df.pickup_latitude != 0) | (df.pickup_longitude != 0)]
-    df = df[df.passenger_count > 0]
-    df = df[df.fare_amount > 0]
+import os
+from project_cook.params import *
 
-    # Remove geographically irrelevant transactions (rows)
-    df = df[df.fare_amount < 400]
-    df = df[df.passenger_count < 8]
-    df = df[df["pickup_latitude"].between(left=40.5, right=40.9)]
-    df = df[df["dropoff_latitude"].between(left=40.5, right=40.9)]
-    df = df[df["pickup_longitude"].between(left=-74.3, right=-73.7)]
-    df = df[df["dropoff_longitude"].between(left=-74.3, right=-73.7)]
 
-    print("✅ data cleaned")
+def load_data():
+    pass
 
-    return df
+def query_data(df,
+               search_term,
+               ):
 
-def get_data_with_cache(gcp_project:str,
-                        query:str,
-                        cache_path:Path,
-                        data_has_header=True) -> pd.DataFrame:
-    """
-    Retrieve `query` data from Big Query, or from `cache_path` if file exists.
-    Store at `cache_path` if retrieved from Big Query for future re-use.
-    """
-    if cache_path.is_file():
-        print(Fore.BLUE + "\nLoad data from local CSV..." + Style.RESET_ALL)
-        df = pd.read_csv(cache_path, header='infer' if data_has_header else None)
+    # Define the schema of the index
+    my_schema = Schema(title=TEXT(stored=True),
+                ingredients=KEYWORD(stored=True, commas=True),
+                directions=TEXT(stored=True),
+                link=ID(stored=True),
+                source=TEXT(stored=True),
+                NER=TEXT(stored=True))
 
+    # Create the index or open it if it already exists
+    if not os.path.exists("new_index"):
+        os.mkdir("new_index")
+        ix = index.create_in("new_index", my_schema)
     else:
-        print(Fore.BLUE + "\nLoad data from Querying Big Query server..." + Style.RESET_ALL)
-        client = bigquery.Client(project=gcp_project)
-        query_job = client.query(query)
-        result = query_job.result()
-        df = result.to_dataframe()
+        ix = index.open_dir("new_index")
 
-        # Store as CSV if BQ query returned at least one valid line
-        if df.shape[0] > 1:
-            df.to_csv(cache_path, header=data_has_header, index=False)
+    #Index the dataset in chunks
+    writer = ix.writer()
+    lines = []
+    for line in df: #Is the header a line?
+        line = line.strip().split(',')
+        if len(line) == 7:
+            lines.append(line)
+        if len(lines) == CHUNK_SIZE:
+            for l in lines:
+                writer.add_document(title=l[1],
+                                    ingredients=l[2],
+                                    directions=l[3],
+                                    link=l[4],
+                                    source=l[5],
+                                    NER=l[6])
+            lines = []
+            writer.commit()
+            writer = ix.writer()
+    # Add any remaining lines
+    for l in lines:
+        writer.add_document(title=l[1],
+                            ingredients=l[2],
+                            directions=l[3],
+                            link=l[4],
+                            source=l[5],
+                            NER=l[6])
+    writer.commit()
+    print("Indexing complete!")
 
-    print(f"✅ Data loaded, with shape {df.shape}")
+    # Create a QueryParser for the "NER" field
+    qp = QueryParser("NER", schema=ix.schema)
 
-    return df
+    # Parse the search term
+    q = qp.parse(search_term)
 
-def load_data_to_bq(data: pd.DataFrame,
-              gcp_project:str,
-              bq_dataset:str,
-              table: str,
-              truncate: bool) -> None:
-    """
-    - Save dataframe to bigquery
-    - Empty the table beforehands if `truncate` is True, append otherwise.
-    """
-    assert isinstance(data, pd.DataFrame)
-    full_table_name = f"{gcp_project}.{bq_dataset}.{table}"
-    print(Fore.BLUE + f"\nSave data to bigquery {full_table_name}...:" + Style.RESET_ALL)
+    # Search the index and get the results
+    results = ix.searcher.search(q)
 
-    # Load data to full_table_name
-    # 🎯 Hint for "*** TypeError: expected bytes, int found":
-    # BQ can only accept "str" columns starting with a letter or underscore column
+    #can we get the term from results now?
 
-    # TODO: simplify this solution if possible, but student may very well choose another way to do it.
-    # We don't test directly against their own BQ table, but only the result of their query.
-    data.columns = [f"_{column}" if not str(column)[0].isalpha() and not str(column)[0] == "_"
-                                                        else str(column) for column in data.columns]
-
-    client = bigquery.Client()
-
-    # define write mode and schema
-    write_mode = "WRITE_TRUNCATE" if truncate else "WRITE_APPEND"
-    job_config = bigquery.LoadJobConfig(write_disposition=write_mode)
-
-    print(f"\n{'Write' if truncate else 'Append'} {full_table_name} ({data.shape[0]} rows)")
-
-    # load data
-    job = client.load_table_from_dataframe(data, full_table_name, job_config=job_config)
-    result = job.result()  # wait for the job to complete
-
-    print(f"✅ Data saved to bigquery, with shape {data.shape}")
+    pass
+def clean_data():
+    pass

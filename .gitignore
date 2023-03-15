@@ -36,3 +36,4 @@ mlruns
 
 .env
 .env.sample
+notebooks/model.h5
