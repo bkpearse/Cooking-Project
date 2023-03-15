@@ -17,9 +17,9 @@ from project_cook.params import *
 def load_data():
     pass
 
-def query_data(df,
-               search_term,
-               ):
+def query_data(df: pd.DataFrame,
+               search_term: str,
+               data_has_header = True):
 
     # Define the schema of the index
     my_schema = Schema(title=TEXT(stored=True),
@@ -77,5 +77,6 @@ def query_data(df,
     #can we get the term from results now?
 
     pass
+
 def clean_data():
     pass
