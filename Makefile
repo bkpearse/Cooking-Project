@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-reset_all_files: reset_local_files reset_bq_files reset_gcs_files
-=======
 # reinstall_package:
 # 	@pip install -e .
 # run_preprocess:
@@ -16,4 +13,3 @@ reset_all_files: reset_local_files reset_bq_files reset_gcs_files
 # 	python -c 'from api_folder/project_cook.interface.main import evaluate; evaluate()'
 
 # run_all: run_preprocess run_train run_pred run_evaluate
->>>>>>> main
