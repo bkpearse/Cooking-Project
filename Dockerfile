@@ -1,4 +1,4 @@
-FROM python:3.8.12-buster
+FROM python:3.10.6
 
 WORKDIR /prod
 
