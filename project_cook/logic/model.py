@@ -5,8 +5,8 @@ import PIL
 import tensorflow as tf
 import os
 from tensorflow import keras
-from tensorflow.keras import layers, models, optimizers
-from tensorflow.keras.models import Sequential
+from keras import layers, models, optimizers
+from keras.models import Sequential
 import pandas as pd
 from pathlib import Path
 import scipy
@@ -60,7 +60,7 @@ def load_image_with_data_augmentation(df):
 
 def load_model():
 
-    from tensorflow.keras.applications.vgg16 import VGG16
+    from keras.applications.vgg16 import VGG16
 
     model = VGG16(weights="imagenet", include_top=False, input_shape=(224,224,3))
 
