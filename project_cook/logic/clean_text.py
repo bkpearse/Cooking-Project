@@ -31,7 +31,3 @@ def remove_words(text):
         text = text.replace(word, '')
 
     return text.strip()
-
-#dropping columns
-data = data.drop('source', axis = 1)
-data = data.drop('Unnamed: 0', axis = 1)

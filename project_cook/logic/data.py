@@ -12,31 +12,33 @@ from whoosh.qparser import QueryParser
 
 import os
 from project_cook.params import *
+from clean_text import *
 
 
 def load_data():
     pass
 
-def clean_data(data):
+def clean_data(df: pd.DataFrame):
 
-    data = data.drop('source', axis = 1)
-    data = data.drop('Unnamed: 0', axis = 1)
+    #Keep these just in case
+    #data = data.drop('source', axis = 1)
+    #data = data.drop('Unnamed: 0', axis = 1)
 
     #applying basic cleaning function
-    data['NER'] = data['NER'].apply(basic_cleaning)
+    df['NER'] = df['NER'].apply(basic_cleaning)
 
     #Applying the remove punctuation function
-    data['NER'] = data['NER'].apply(remove_punctuation)
-    data['ingredients'] = data['ingredients'].apply(remove_punctuation)
-    data['directions'] = data['directions'].apply(remove_punctuation)
+    df['NER'] = df['NER'].apply(remove_punctuation)
+    df['ingredients'] = df['ingredients'].apply(remove_punctuation)
+    df['directions'] = df['directions'].apply(remove_punctuation)
 
     #applying the remove word function
-    data['NER'] = data['NER'].apply(remove_words)
+    df['NER'] = df['NER'].apply(remove_words)
 
-    return data
+    return df
 
 def query_data(df: pd.DataFrame,
-               search_term: str,
+               search_term,
                data_has_header = True):
 
     # Define the schema of the index
@@ -53,6 +55,7 @@ def query_data(df: pd.DataFrame,
         ix = index.create_in("new_index", my_schema)
     else:
         ix = index.open_dir("new_index")
+        return ix
 
     #Index the dataset in chunks
     writer = ix.writer()
@@ -84,6 +87,8 @@ def query_data(df: pd.DataFrame,
     writer.commit()
     print("Indexing complete!")
 
+    search_term = remove_words(search_term)
+
     # Create a QueryParser for the "NER" field
     qp = QueryParser("NER", schema=ix.schema)
 
@@ -93,6 +98,20 @@ def query_data(df: pd.DataFrame,
     # Search the index and get the results
     results = ix.searcher.search(q)
 
-    #can we get the term from results now?
+    recipes = []
+    with ix.searcher() as searcher:
+        results = searcher.search(q)
+        # Print the results
+        for result in results:
+            # print(result)
+            hit = {
+                'NER':result['NER'],
+                'directions': result['directions'],
+                'ingredients': result['ingredients'],
+                'link': result['link'],
+                'source': result['source'],
+                'title': result['title'],
+            }
+            recipes.append(hit)
 
-    pass
+    return recipes
