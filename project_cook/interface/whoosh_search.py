@@ -21,7 +21,9 @@ import os
 
 
 def settings():
-
+    if os.path.exists("new_index"):
+        ix = index.open_dir("new_index")
+        return ix
     # # SETTINGS
     # from google.colab import drive
 
@@ -44,9 +46,6 @@ def settings():
     if not os.path.exists("new_index"):
         os.mkdir("new_index")
         ix = index.create_in("new_index", my_schema)
-    else:
-        ix = index.open_dir("new_index")
-        return ix
 
     # Set the chunk size
     chunk_size = 10000
