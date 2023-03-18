@@ -1,21 +1,12 @@
-import matplotlib.pyplot as plt
 import numpy as np
-import PIL
 import tensorflow as tf
-import os
-from tensorflow import keras
-from tensorflow.keras import layers
 from tensorflow.keras.models import Sequential
 import pandas as pd
 from pathlib import Path
-import scipy
-from tqdm import tqdm
-from PIL import Image
-from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras import layers, models
 from tensorflow.keras.applications.vgg16 import preprocess_input
 from tensorflow.keras import optimizers
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 
 
 def proc_img(filepath):
