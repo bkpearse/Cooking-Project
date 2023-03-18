@@ -7,7 +7,7 @@ from tensorflow import keras
 from recipes.params import *
 def save_results(params: dict, metrics: dict) -> None:
     """
-    Persi st params & metrics locally on hard drive at
+    Persist params & metrics locally on hard drive at
     "{LOCAL_REGISTRY_PATH}/params/{current_timestamp}.pickle"
     "{LOCAL_REGISTRY_PATH}/metrics/{current_timestamp}.pickle"
     - (unit 03 only) if MODEL_TARGET='mlflow', also persist them on mlflow
