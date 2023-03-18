@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi import File
 from fastapi import UploadFile
-from PIL import Image
-import numpy as np
 from project_cook.interface.whoosh_search import search_recipes
+from project_cook.interface.images_predict import predict_function
+import aiofiles
+from pathlib import Path
+
 
 api = FastAPI()
 
@@ -27,8 +29,14 @@ def predict(feature1, feature2):
 
 @api.post("/what-to-eat")
 async def what_to_eat(file: UploadFile = File(...)):
-    # TODO return recipes from photo.
-    return {'file': file}
+    filepath = 'notebooks/images/' + file.filename[:-4]
+    results = []
+    async with aiofiles.open(filepath+'/'+file.filename, 'wb') as out_file:
+        content = await file.read()  # async read
+        await out_file.write(content)  # async write
+        results = predict_function(Path(filepath))
+    return {"Result": results}
+    # return {'file': file, 'content': contents}
 
 
 @api.get("/query-recipes")
