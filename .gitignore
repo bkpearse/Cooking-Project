@@ -23,6 +23,7 @@ __pycache__
 05-ML/**/*.txt
 06-Deep-Learning/**/*.txt
 *.zip
+!notebooks/model_weights.zip
 mlruns
 *.sqlite
 # IDE #
