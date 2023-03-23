@@ -6,6 +6,14 @@ import tensorflow as tf
 from tensorflow.keras import layers, models, optimizers
 from tensorflow.keras.applications.vgg16 import preprocess_input
 from tensorflow.keras.models import Sequential, load_model
+import os
+from io import BytesIO
+import numpy as np
+
+from colorama import Fore, Style
+from PIL import Image
+from keras.applications.vgg16 import preprocess_input
+from tensorflow.keras.preprocessing.image import img_to_array
 
 
 def proc_img(filepath):
@@ -138,8 +146,49 @@ def predict_function(pred_dir):
         })
         # print(f'{curr_pred}, {actual}, {is_correct}')
     return predictions
+def pred_streamlit(user_input):
+    """
+    Make a prediction using the latest trained model, using a single image as input
+    """
+    image = Image.open(BytesIO(user_input))
+    print(f"type after Image.open: {type(image)}")
 
+    # Resize to 224 x 224
+    image = image.resize((224,224))
+    print(f"type after resize: {type(image)}")
+
+    # Convert the image pixels to a numpy array
+    image = img_to_array(image)
+    print(f"type after img_to_array: {type(image)}")
+
+    # Reshape data for the model
+    image = image.reshape((1,224,224,3))
+    print(f"type after reshape: {type(image)}")
+
+    # Prepare the image for the VGG model
+    image = preprocess_input(image)
+    print(f"type after preprocess_input: {type(image)}")
+
+    # Run prediction
+    # model = load_model()
+    model, train_images = get_model()
+    opt = optimizers.Adam(learning_rate=1e-4)
+    model.compile(loss='categorical_crossentropy',
+                  optimizer=opt,
+                  metrics=['accuracy'])
+    result = model.predict(image)
+    predicted_probabilities = np.argmax(result,axis=1)
+    # labels = load_labels()
+    labels = (train_images.class_indices)
+    labels = dict((v, k) for k, v in labels.items())
+
+    # labels = dict(enumerate(labels.flatten()))
+    # labels = labels[0]
+
+    prediction = [labels[k] for k in predicted_probabilities]
+
+    return prediction
 
 if __name__ == '__main__':
-    print(predict_function(pred_dir=Path("notebooks/images/or")))
+    print(predict_function(pred_dir=Path("notebooks/images/lemon")))
     # print(os.path.dirname(os.path.realpath(__file__)))
