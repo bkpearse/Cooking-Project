@@ -1,23 +1,10 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import csv
-from whoosh.fields import *
-from whoosh.index import create_in, open_dir
-from whoosh.qparser import QueryParser
-import whoosh.index as index
-from whoosh.fields import Schema, TEXT
-from whoosh.qparser import MultifieldParser
-from whoosh.qparser import OrGroup
-from whoosh.fields import Schema, KEYWORD
-from whoosh.query import Phrase
-from whoosh import qparser
-from whoosh.query import Or
-from whoosh.query import Term, And, BooleanQuery
-from whoosh.index import open_dir
-from whoosh import scoring
-from whoosh import index
 import os
+
+import whoosh.index as index
+from whoosh import index
+from whoosh.fields import *
+from whoosh.fields import KEYWORD, TEXT, Schema
+from whoosh.qparser import QueryParser
 
 
 def settings():
@@ -32,20 +19,18 @@ def settings():
     # import os
     # os.chdir('/content/drive/MyDrive/Colab Notebooks/')
     filename = 'project_cook/data/full_dataset.csv'
-    df = pd.read_csv(filename)
 
     # Define the schema of the index
     my_schema = Schema(title=TEXT(stored=True),
-                    ingredients=KEYWORD(stored=True, commas=True),
-                    directions=TEXT(stored=True),
-                    link=ID(stored=True),
-                    source=TEXT(stored=True),
-                    NER=TEXT(stored=True))
+                       ingredients=KEYWORD(stored=True, commas=True),
+                       directions=TEXT(stored=True),
+                       link=ID(stored=True),
+                       source=TEXT(stored=True),
+                       NER=TEXT(stored=True))
 
     # Create the index or open it if it already exists
-    if not os.path.exists("new_index"):
-        os.mkdir("new_index")
-        ix = index.create_in("new_index", my_schema)
+    os.mkdir("new_index")
+    ix = index.create_in("new_index", my_schema)
 
     # Set the chunk size
     chunk_size = 10000
@@ -82,11 +67,12 @@ def settings():
 
     return ix
 
+
 def search_recipes(search_term):
     ix = settings()
     # Create a QueryParser for the "NER" field
     qp = QueryParser("NER", schema=ix.schema)
-    # Parse the search term
+    # TODO: Split the string by space.
     q = qp.parse(search_term)
 
     # Search the index and get the results
@@ -97,7 +83,7 @@ def search_recipes(search_term):
         for result in results:
             # print(result)
             hit = {
-                'NER':result['NER'],
+                'NER': result['NER'],
                 'directions': result['directions'],
                 'ingredients': result['ingredients'],
                 'link': result['link'],
