@@ -12,6 +12,7 @@ def basic_cleaning(text):
 #Removing punctuation
 def remove_punctuation(text):
   text = text.translate(str.maketrans('','','"[]'))
+  text = text.replace('\\u00b0', ' degree')
   return text
 
 
