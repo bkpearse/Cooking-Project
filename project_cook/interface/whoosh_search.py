@@ -5,12 +5,15 @@ from whoosh import index
 from whoosh.fields import *
 from whoosh.fields import KEYWORD, TEXT, Schema
 from whoosh.qparser import QueryParser
+from project_cook.logic.clean_text import *
 
 
 def settings():
+
     if os.path.exists("new_index"):
         ix = index.open_dir("new_index")
         return ix
+
     # # SETTINGS
     # from google.colab import drive
 
@@ -32,8 +35,8 @@ def settings():
     os.mkdir("new_index")
     ix = index.create_in("new_index", my_schema)
 
-    # Set the chunk size
-    chunk_size = 10000
+    #Define CHUNK_SIZE just for debugging
+    CHUNK_SIZE = 1000
 
     # Index the dataset in chunks
     writer = ix.writer()
@@ -44,7 +47,7 @@ def settings():
             line = line.strip().split(',')
             if len(line) == 7:
                 lines.append(line)
-            if len(lines) == chunk_size:
+            if len(lines) == CHUNK_SIZE:
                 for l in lines:
                     writer.add_document(title=l[1],
                                         ingredients=l[2],
@@ -73,6 +76,7 @@ def search_recipes(search_term):
     # Create a QueryParser for the "NER" field
     qp = QueryParser("NER", schema=ix.schema)
     # TODO: Split the string by space.
+    search_term = remove_words(search_term)
     q = qp.parse(search_term)
 
     # Search the index and get the results
