@@ -13,10 +13,18 @@ from whoosh.qparser import QueryParser
 import os
 from project_cook.params import *
 from clean_text import *
+from google.cloud import storage
 
 
-def load_data():
-    pass
+def load_recipes_from_gcp():
+
+    storage_client = storage.Client(project=GCP_PROJECT)
+    blob_name = "RecipeNLG_dataset.csv"
+
+    bucket = storage_client.get_bucket(BUCKET_NAME)
+    blob = bucket.blob(blob_name)
+
+    return blob.download_to_file
 
 def clean_data(df: pd.DataFrame):
 
