@@ -1,10 +1,7 @@
-from fastapi import FastAPI
-from fastapi import File
-from fastapi import UploadFile
-from project_cook.interface.whoosh_search import search_recipes
-from project_cook.interface.images_predict import predict_function, pred_streamlit
-import aiofiles
-from pathlib import Path
+from fastapi import FastAPI, File, UploadFile
+
+from project_cook.interface.main import (pred_streamlit, predict_function,
+                                         search_recipes)
 
 api = FastAPI()
 
@@ -46,11 +43,6 @@ async def what_to_eat(ingredients):
 
 @api.post("/what-to-eat")
 async def what_to_eat(img: UploadFile = File(...)):
-    print(img.filename)
-    extension = img.filename.split(".")[-1] in ("jpg", "jpeg", "png")
-    # return img
-    # if not extension:
-    #     return f"{img.filename} Image must be .jpg, .jpeg or .png format!"
     img = img.file.read()
     predicted_class = pred_streamlit(img)
 
