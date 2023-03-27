@@ -24,7 +24,7 @@ def load_recipes_from_gcp():
     bucket = storage_client.get_bucket(BUCKET_NAME)
     blob = bucket.blob(blob_name)
 
-    return blob.download_to_file
+    return pd.read_csv(blob.download_to_file)
 
 def clean_data(df: pd.DataFrame):
 
