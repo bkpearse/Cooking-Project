@@ -34,6 +34,9 @@ def clean_data(df: pd.DataFrame):
     #data = data.drop('source', axis = 1)
     #data = data.drop('Unnamed: 0', axis = 1)
 
+    #Removing all of the test recipes from df
+    df = df[~df['title'].str.contains('Test Recipe')]
+
     #applying basic cleaning function
     df['NER'] = df['NER'].apply(basic_cleaning)
 
