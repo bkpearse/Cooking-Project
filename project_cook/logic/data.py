@@ -2,18 +2,19 @@
 Package that contains functions for cleaning and querying our datasets
 """
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+import os
 
+import pandas as pd
+from clean_text import *
 from whoosh import index
-from whoosh.fields import Schema, TEXT, KEYWORD, ID
+from whoosh.fields import ID, KEYWORD, TEXT, Schema
 from whoosh.qparser import QueryParser
 
-import os
 from project_cook.params import *
+
 from clean_text import *
 from google.cloud import storage
+
 
 
 def load_recipes_from_gcp():
@@ -25,6 +26,7 @@ def load_recipes_from_gcp():
     blob = bucket.blob(blob_name)
 
     return pd.read_csv(blob.download_to_file)
+
 
 def clean_data(df: pd.DataFrame):
 
@@ -45,17 +47,16 @@ def clean_data(df: pd.DataFrame):
 
     return df
 
-def query_data(df: pd.DataFrame,
-               search_term,
-               data_has_header = True):
+
+def query_data(df: pd.DataFrame, search_term, data_has_header=True):
 
     # Define the schema of the index
     my_schema = Schema(title=TEXT(stored=True),
-                ingredients=KEYWORD(stored=True, commas=True),
-                directions=TEXT(stored=True),
-                link=ID(stored=True),
-                source=TEXT(stored=True),
-                NER=TEXT(stored=True))
+                       ingredients=KEYWORD(stored=True, commas=True),
+                       directions=TEXT(stored=True),
+                       link=ID(stored=True),
+                       source=TEXT(stored=True),
+                       NER=TEXT(stored=True))
 
     # Create the index or open it if it already exists, on the cloud
     if not os.path.exists("new_index"):
@@ -68,7 +69,7 @@ def query_data(df: pd.DataFrame,
     #Index the dataset in chunks
     writer = ix.writer()
     lines = []
-    for line in df: #Is the header a line?
+    for line in df:  #Is the header a line?
         line = line.strip().split(',')
         if len(line) == 7:
             lines.append(line)
@@ -113,7 +114,7 @@ def query_data(df: pd.DataFrame,
         for result in results:
             # print(result)
             hit = {
-                'NER':result['NER'],
+                'NER': result['NER'],
                 'directions': result['directions'],
                 'ingredients': result['ingredients'],
                 'link': result['link'],
