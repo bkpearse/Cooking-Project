@@ -19,6 +19,8 @@ from whoosh.fields import KEYWORD, TEXT, Schema
 from whoosh.qparser import QueryParser
 
 from project_cook.logic.clean_text import *
+from googletrans import Translator, LANGUAGES
+
 
 
 def proc_img(filepath):
@@ -125,7 +127,7 @@ def predict_function(pred_dir):
     return predictions
 
 
-def pred_streamlit(user_input):
+def pred_streamlit(user_input, lang):
     """
     Make a prediction using the latest trained model, using a single image as input
     """
@@ -160,9 +162,10 @@ def pred_streamlit(user_input):
     # labels = dict(enumerate(labels.flatten()))
     # labels = labels[0]
 
+    transl = [translate_text(labels[k], lang) for k in predicted_probabilities]
     prediction = [labels[k] for k in predicted_probabilities]
 
-    return prediction
+    return {'prediction': prediction, 'translation': transl}
 
 
 def settings():
@@ -226,7 +229,7 @@ def settings():
     return ix
 
 
-def search_recipes(search_term):
+def search_recipes(search_term, lang):
     ix = settings()
     # Create a QueryParser for the "NER" field
     qp = QueryParser("NER", schema=ix.schema)
@@ -244,12 +247,12 @@ def search_recipes(search_term):
         for result in results:
             # print(result)
             hit = {
-                'NER': result['NER'],
-                'directions': result['directions'],
-                'ingredients': result['ingredients'],
+                'NER': translate_text(result['NER'], lang),
+                'directions': translate_text(result['directions'], lang),
+                'ingredients': translate_text(result['ingredients'], lang),
                 'link': result['link'],
                 'source': result['source'],
-                'title': result['title'],
+                'title': translate_text(result['title'], lang),
             }
             recipes.append(hit)
     return recipes
@@ -271,3 +274,9 @@ def search_recipes(search_term):
 #         extype, value, tb = sys.exc_info()
 #         traceback.print_exc()
 #         ipdb.post_mortem(tb)
+
+
+def translate_text(text, target_language="en"):
+    translator = Translator()
+    translation = translator.translate(text, dest=target_language)
+    return translation.text
