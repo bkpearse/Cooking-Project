@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import whoosh.index as index
+from google.cloud import storage
 from googletrans import LANGUAGES, Translator
 from keras.applications.vgg16 import preprocess_input
 from PIL import Image
@@ -20,7 +21,6 @@ from whoosh.fields import KEYWORD, TEXT, Schema
 from whoosh.qparser import QueryParser
 
 from project_cook.logic.clean_text import *
-
 
 def proc_img(filepath):
     """ Create a DataFrame with the filepath and the labels of the pictures
@@ -77,6 +77,7 @@ def get_model():
                   metrics=['accuracy'])
     return model, train_images
 
+
 def pred_streamlit(user_input, lang):
     """
     Make a prediction using the latest trained model, using a single image as input
@@ -111,13 +112,13 @@ def pred_streamlit(user_input, lang):
     if lang == 'en':
         transl = prediction
     else:
-        transl = [translate_text(labels[k], lang) for k in predicted_probabilities]
+        transl = [
+            translate_text(labels[k], lang) for k in predicted_probabilities
+        ]
     return {'prediction': prediction, 'translation': transl}
 
 
-
-
-def settings(filename = 'project_cook/data/full_dataset.csv'):
+def settings(filename='project_cook/data/full_dataset.csv'):
     """
     Sets the index for recipes search.
     """
@@ -133,7 +134,7 @@ def settings(filename = 'project_cook/data/full_dataset.csv'):
                        source=TEXT(stored=True),
                        NER=TEXT(stored=True))
 
-    # Create the index or open it if it already exists
+    # # Create the index or open it if it already exists
     os.mkdir("new_index")
     ix = index.create_in("new_index", my_schema)
 
@@ -187,7 +188,6 @@ def search_recipes(search_term, lang):
     search_term = remove_punctuation(search_term)
     search_term = remove_words(search_term)
 
-
     ix = settings()
     # Create a QueryParser for the "NER" field
     qp = QueryParser("NER", schema=ix.schema)
@@ -228,3 +228,16 @@ def translate_text(text, target_language="en"):
     translator = Translator()
     translation = translator.translate(text, dest=target_language)
     return translation.text
+
+
+if __name__ == '__main__':
+    try:
+        settings()
+    except:
+        import sys
+        import traceback
+
+        import ipdb
+        extype, value, tb = sys.exc_info()
+        traceback.print_exc()
+        ipdb.post_mortem(tb)
