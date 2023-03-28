@@ -27,6 +27,8 @@ def load_recipes_from_gcp():
 
     return pd.read_csv(blob.download_to_file)
 
+def upload_index_to_cloud():
+    pass
 
 def clean_data(df: pd.DataFrame):
 
