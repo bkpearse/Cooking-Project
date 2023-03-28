@@ -21,6 +21,48 @@ from whoosh.qparser import QueryParser
 from project_cook.logic.clean_text import *
 from googletrans import Translator, LANGUAGES
 
+from google.cloud import storage
+from whoosh import store
+
+class GoogleCloudStorage(store.Storage):
+    def __init__(self, bucket_name, client=None):
+        self.bucket_name = bucket_name
+        if client is None:
+            client = storage.Client()
+        self.client = client
+        self.bucket = self.client.get_bucket(self.bucket_name)
+
+    def create(self, name):
+        return store.RAMFile(name, self)
+
+    def open(self, name, *args, **kwargs):
+        blob = self.bucket.get_blob(name)
+        if blob is None:
+            raise store.NoSuchFileError(f"No file found with the name: {name}")
+        return store.RAMFile(blob.download_as_bytes(), self)
+
+    def list(self):
+        return [blob.name for blob in self.bucket.list_blobs()]
+
+    def remove(self, name):
+        blob = self.bucket.get_blob(name)
+        if blob is not None:
+            blob.delete()
+
+    def rename(self, src, dest):
+        src_blob = self.bucket.get_blob(src)
+        if src_blob is None:
+            raise store.NoSuchFileError(f"No file found with the name: {src}")
+
+        self.bucket.copy_blob(src_blob, self.bucket, new_name=dest)
+        src_blob.delete()
+
+    def exists(self, name):
+        return self.bucket.get_blob(name) is not None
+
+    def _path(self, name):
+        return f"gs://{self.bucket_name}/{name}"
+
 
 
 def proc_img(filepath):
@@ -169,9 +211,19 @@ def pred_streamlit(user_input, lang):
 
 
 def settings():
-    if os.path.exists("new_index"):
-        ix = index.open_dir("new_index")
-        return ix
+
+    bucket_name = "whatcanicook_v1nc3nz00"  # Replace with your actual bucket name
+    storage_obj = GoogleCloudStorage(bucket_name)
+
+    try:
+        ix = index.open_dir(storage_obj)
+    except index.EmptyIndexError:
+        ix = None
+
+    # Saving Index locally
+    #if os.path.exists("new_index"):
+        #ix = index.open_dir("new_index")
+        #return ix
     # # SETTINGS
     # from google.colab import drive
 
@@ -189,9 +241,11 @@ def settings():
                        source=TEXT(stored=True),
                        NER=TEXT(stored=True))
 
+    ix = index.create_in(storage_obj, my_schema)
+
     # Create the index or open it if it already exists
-    os.mkdir("new_index")
-    ix = index.create_in("new_index", my_schema)
+    #os.mkdir("new_index")
+    #ix = index.create_in("new_index", my_schema)
 
     # Set the chunk size
     chunk_size = 10000
