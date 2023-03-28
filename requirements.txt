@@ -30,3 +30,4 @@ wrapt==1.15.0
 zipp==3.15.0
 scikit-learn
 nltk
+googletrans==4.0.0-rc1

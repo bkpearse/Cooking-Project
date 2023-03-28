@@ -1,10 +1,14 @@
 import glob
 import os
-import time
 import pickle
+import time
+
 from colorama import Fore, Style
 from tensorflow import keras
-from recipes.params import *
+
+from project_cook.params import *
+
+
 def save_results(params: dict, metrics: dict) -> None:
     """
     Persist params & metrics locally on hard drive at
@@ -16,13 +20,15 @@ def save_results(params: dict, metrics: dict) -> None:
 
     # save params locally
     if params is not None:
-        params_path = os.path.join(LOCAL_REGISTRY_PATH, "params", timestamp + ".pickle")
+        params_path = os.path.join(LOCAL_REGISTRY_PATH, "params",
+                                   timestamp + ".pickle")
         with open(params_path, "wb") as file:
             pickle.dump(params, file)
 
     # save metrics locally
     if metrics is not None:
-        metrics_path = os.path.join(LOCAL_REGISTRY_PATH, "metrics", timestamp + ".pickle")
+        metrics_path = os.path.join(LOCAL_REGISTRY_PATH, "metrics",
+                                    timestamp + ".pickle")
         with open(metrics_path, "wb") as file:
             pickle.dump(metrics, file)
 
@@ -48,7 +54,8 @@ def save_model(model: keras.Model = None) -> None:
         # 🎁 We give you this piece of code as a gift. Please read it carefully! Add breakpoint if you need!
         from google.cloud import storage
 
-        model_filename = model_path.split("/")[-1] # e.g. "20230208-161047.h5" for instance
+        model_filename = model_path.split("/")[
+            -1]  # e.g. "20230208-161047.h5" for instance
         client = storage.Client()
         bucket = client.bucket(BUCKET_NAME)
         blob = bucket.blob(f"models/{model_filename}")
@@ -85,7 +92,8 @@ def load_model(stage="Production") -> keras.Model:
         client = storage.Client()
         blobs = list(client.get_bucket(BUCKET_NAME).list_blobs(prefix="model"))
         latest_blob = max(blobs, key=lambda x: x.updated)
-        latest_model_path_to_save = os.path.join(LOCAL_REGISTRY_PATH, latest_blob.name)
+        latest_model_path_to_save = os.path.join(LOCAL_REGISTRY_PATH,
+                                                 latest_blob.name)
         latest_blob.download_to_filename(latest_model_path_to_save)
         lastest_model = keras.models.load_model(latest_model_path_to_save)
 
