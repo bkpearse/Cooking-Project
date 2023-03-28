@@ -9,3 +9,13 @@
 1. pip install -e .
 1. Re-install pytorch using instructions from their website
 1. Run `flask run --no-reload` to prevent app from restarting while running detection
+
+
+
+# Images for test
+## Train folder.
+Tomato image 17
+Pear image 12
+Banana image 1
+Onion image 1
+Carrot image 1
