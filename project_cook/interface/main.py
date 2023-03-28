@@ -42,6 +42,9 @@ def proc_img(filepath):
 
 
 def get_model():
+    """
+    Returns the model and the train_images for labels.
+    """
     train_dir = Path("notebooks/images/train")
     train_filepaths = list(train_dir.glob(r'**/*.jpg'))
     train_df = proc_img(train_filepaths)
@@ -73,58 +76,6 @@ def get_model():
                   optimizer=opt,
                   metrics=['accuracy'])
     return model, train_images
-
-
-def get_model_pickle():
-
-    pickled_model = pickle.load(open('notebooks/model_weights.pkl', 'rb'))
-
-    print(pickled_model)
-    # pickled_model.predict(X_test)
-
-
-def predict_function(pred_dir):
-    model, train_images = get_model()
-    pred_filepaths = list(pred_dir.glob(r'**/*.jpg'))
-    #Start here in streamlit
-    #what is the type of image, then convert it (jpg, jpeg, png, bmp, tiff)
-    #pred_df = proc_img(list(user_input))
-
-    pred_df = proc_img(pred_filepaths)
-    pred_img_generator = tf.keras.preprocessing.image.ImageDataGenerator(
-        preprocessing_function=tf.keras.applications.mobilenet_v2.
-        preprocess_input)
-
-    pred_images = pred_img_generator.flow_from_dataframe(
-        dataframe=pred_df,
-        x_col='Filepath',
-        y_col='Label',
-        target_size=(224, 224),
-        color_mode='rgb',
-        class_mode='categorical',
-        batch_size=32,
-        shuffle=False)
-    #predict me!
-    result = model.predict(pred_images)
-    predicted_probabilities = np.argmax(result, axis=1)
-    labels = (train_images.class_indices)
-    labels = dict((v, k) for k, v in labels.items())
-    pred = [labels[k] for k in predicted_probabilities]
-    # return {'pred': pred}
-    predictions = []
-    # zip the predictions with the inputs so we can check if the prediction is correct
-    for curr_pred, curr_path in zip(pred, list(pred_df.Filepath)):
-        # take the folder name from the file path because the folder name is the type food
-        actual = curr_path.split('/')[-2]
-        is_correct = curr_pred == actual
-        predictions.append({
-            'current': curr_pred,
-            'actual': actual,
-            'is_correct': is_correct
-        })
-        # print(f'{curr_pred}, {actual}, {is_correct}')
-    return predictions
-
 
 def pred_streamlit(user_input, lang):
     """
@@ -164,18 +115,15 @@ def pred_streamlit(user_input, lang):
     return {'prediction': prediction, 'translation': transl}
 
 
-def settings():
+
+
+def settings(filename = 'project_cook/data/full_dataset.csv'):
+    """
+    Sets the index for recipes search.
+    """
     if os.path.exists("new_index"):
         ix = index.open_dir("new_index")
         return ix
-    # # SETTINGS
-    # from google.colab import drive
-
-    # drive.mount('/content/drive')
-
-    # import os
-    # os.chdir('/content/drive/MyDrive/Colab Notebooks/')
-    filename = 'project_cook/data/full_dataset.csv'
 
     # Define the schema of the index
     my_schema = Schema(title=TEXT(stored=True),
@@ -226,13 +174,23 @@ def settings():
 
 
 def search_recipes(search_term, lang):
-    ix = settings()
-    # Create a QueryParser for the "NER" field
-    qp = QueryParser("NER", schema=ix.schema)
-    # TODO: Split the string by space.
+    """
+    Search recipes.
+
+    Args:
+        search_term (_type_): the search term(s), e,g. 'apple pear cinnamon'
+        lang (_type_): language code, e.g. 'en'
+    """
+
+    # Clean the terms.
     search_term = basic_cleaning(search_term)
     search_term = remove_punctuation(search_term)
     search_term = remove_words(search_term)
+
+
+    ix = settings()
+    # Create a QueryParser for the "NER" field
+    qp = QueryParser("NER", schema=ix.schema)
     q = qp.parse(search_term)
 
     # Search the index and get the results
@@ -241,7 +199,6 @@ def search_recipes(search_term, lang):
         results = searcher.search(q)
         # Print the results
         for result in results:
-            # print(result)
             if lang == 'en':
                 hit = {
                     'NER': result['NER'],
@@ -264,23 +221,10 @@ def search_recipes(search_term, lang):
     return recipes
 
 
-# if __name__ == '__main__':
-#     try:
-#         preprocess_and_train()
-#         # preprocess()
-#         # train()
-#         pred()
-#     except:
-#         import sys
-#         import traceback
-
-#         import ipdb
-#         extype, value, tb = sys.exc_info()
-#         traceback.print_exc()
-#         ipdb.post_mortem(tb)
-
-
 def translate_text(text, target_language="en"):
+    """
+    Translation function.
+    """
     translator = Translator()
     translation = translator.translate(text, dest=target_language)
     return translation.text
