@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import whoosh.index as index
+from googletrans import LANGUAGES, Translator
 from keras.applications.vgg16 import preprocess_input
 from PIL import Image
 from tensorflow.keras import optimizers
@@ -19,8 +20,6 @@ from whoosh.fields import KEYWORD, TEXT, Schema
 from whoosh.qparser import QueryParser
 
 from project_cook.logic.clean_text import *
-from googletrans import Translator, LANGUAGES
-
 
 
 def proc_img(filepath):
@@ -147,7 +146,6 @@ def pred_streamlit(user_input, lang):
     print(f"type after preprocess_input: {type(image)}")
 
     # Run prediction
-    # model = load_model()
     model, train_images = get_model()
     opt = optimizers.Adam(learning_rate=1e-4)
     model.compile(loss='categorical_crossentropy',
@@ -155,16 +153,14 @@ def pred_streamlit(user_input, lang):
                   metrics=['accuracy'])
     result = model.predict(image)
     predicted_probabilities = np.argmax(result, axis=1)
-    # labels = load_labels()
     labels = (train_images.class_indices)
     labels = dict((v, k) for k, v in labels.items())
 
-    # labels = dict(enumerate(labels.flatten()))
-    # labels = labels[0]
-
-    transl = [translate_text(labels[k], lang) for k in predicted_probabilities]
     prediction = [labels[k] for k in predicted_probabilities]
-
+    if lang == 'en':
+        transl = prediction
+    else:
+        transl = [translate_text(labels[k], lang) for k in predicted_probabilities]
     return {'prediction': prediction, 'translation': transl}
 
 
@@ -246,18 +242,26 @@ def search_recipes(search_term, lang):
         # Print the results
         for result in results:
             # print(result)
-            hit = {
-                'NER': translate_text(result['NER'], lang),
-                'directions': translate_text(result['directions'], lang),
-                'ingredients': translate_text(result['ingredients'], lang),
-                'link': result['link'],
-                'source': result['source'],
-                'title': translate_text(result['title'], lang),
-            }
+            if lang == 'en':
+                hit = {
+                    'NER': result['NER'],
+                    'directions': result['directions'],
+                    'ingredients': result['ingredients'],
+                    'link': result['link'],
+                    'source': result['source'],
+                    'title': result['title'],
+                }
+            else:
+                hit = {
+                    'NER': translate_text(result['NER'], lang),
+                    'directions': translate_text(result['directions'], lang),
+                    'ingredients': translate_text(result['ingredients'], lang),
+                    'link': result['link'],
+                    'source': result['source'],
+                    'title': translate_text(result['title'], lang),
+                }
             recipes.append(hit)
     return recipes
-
-
 
 
 # if __name__ == '__main__':
