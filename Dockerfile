@@ -10,7 +10,7 @@ COPY project_cook project_cook
 COPY setup.py setup.py
 COPY new_index new_index
 COPY notebooks/model.h5 notebooks/model.h5
-#COPY notebooks/images notebooks/images
+COPY notebooks/images notebooks/images
 RUN pip install .
 
 # COPY Makefile Makefile
