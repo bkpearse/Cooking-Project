@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import Body, FastAPI, File, UploadFile
 
 from project_cook.interface.main import (pred_streamlit, predict_function,
                                          search_recipes)
@@ -36,14 +36,13 @@ def predict(feature1, feature2):
 #     # return {'file': file, 'content': contents}
 
 
-@api.get("/query-recipes")
-async def what_to_eat(ingredients):
-    return search_recipes(ingredients)
+@api.get("/query-recipes/{lang}")
+async def what_to_eat(lang: str, ingredients):
+    return search_recipes(ingredients, lang)
 
 
-@api.post("/what-to-eat")
-async def what_to_eat(img: UploadFile = File(...)):
+@api.post("/what-to-eat/{lang}")
+async def what_to_eat(lang: str, img: UploadFile = File(...)):
     img = img.file.read()
-    predicted_class = pred_streamlit(img)
-
+    predicted_class = pred_streamlit(img, lang)
     return predicted_class
