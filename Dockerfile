@@ -11,7 +11,11 @@ COPY setup.py setup.py
 COPY new_index new_index
 COPY notebooks/model.h5 notebooks/model.h5
 COPY notebooks/images notebooks/images
+COPY notebooks/audio notebooks/audio
 RUN pip install .
+RUN apt update && apt install ffmpeg -y
+
+EXPOSE 8501
 
 # COPY Makefile Makefile
 # RUN make reset_local_files
