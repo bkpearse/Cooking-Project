@@ -20,6 +20,9 @@ from whoosh.fields import *
 from whoosh.fields import KEYWORD, TEXT, Schema
 from whoosh.qparser import QueryParser
 
+import whisper
+
+
 from project_cook.logic.clean_text import *
 
 def proc_img(filepath):
@@ -221,6 +224,23 @@ def search_recipes(search_term, lang):
     return recipes
 
 
+
+def transcribe_audio(file, lang='en'):
+    """
+    Decodes an audio file into text.
+    """
+    model = whisper.load_model("base")
+    result = model.transcribe(file, language=lang, task="translate", fp16=False)
+    prediction = result['text'].split()
+    transl = []
+    if lang == 'en':
+        transl = prediction
+    else:
+        for x in prediction:
+            transl.append(translate_text(k, lang))
+    return {'prediction': prediction, 'translation': transl}
+
+
 def translate_text(text, target_language="en"):
     """
     Translation function.
@@ -232,7 +252,7 @@ def translate_text(text, target_language="en"):
 
 if __name__ == '__main__':
     try:
-        settings()
+        print(transcribe_audio())
     except:
         import sys
         import traceback

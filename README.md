@@ -19,3 +19,13 @@ Pear image 12
 Banana image 1
 Onion image 1
 Carrot image 1
+
+
+# [Whisper](https://github.com/openai/whisper)
+
+```
+pip install -U openai-whisper
+
+sudo apt update && sudo apt install ffmpeg
+
+```
