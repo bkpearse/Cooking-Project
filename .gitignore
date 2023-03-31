@@ -39,4 +39,5 @@ mlruns
 .env.sample
 notebooks/model.h5
 notebooks/images
+notebooks/audio
 tests/
