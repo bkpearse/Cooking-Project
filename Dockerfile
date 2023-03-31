@@ -3,6 +3,7 @@ FROM python:3.10.6
 WORKDIR /prod
 
 COPY requirements.txt requirements.txt
+RUN apt update && apt install ffmpeg -y
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
@@ -13,7 +14,6 @@ COPY notebooks/model.h5 notebooks/model.h5
 COPY notebooks/images notebooks/images
 COPY notebooks/audio notebooks/audio
 RUN pip install .
-RUN apt update && apt install ffmpeg -y
 
 EXPOSE 8501
 
