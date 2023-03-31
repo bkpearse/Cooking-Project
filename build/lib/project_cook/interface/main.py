@@ -15,15 +15,53 @@ from tensorflow.keras import optimizers
 from tensorflow.keras.applications.vgg16 import preprocess_input
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
-from whoosh import index
+from whoosh import index, store
 from whoosh.fields import *
 from whoosh.fields import KEYWORD, TEXT, Schema
 from whoosh.qparser import QueryParser
 
-import whisper
-
-
 from project_cook.logic.clean_text import *
+
+class GoogleCloudStorage(store.Storage):
+
+    def __init__(self, bucket_name, client=None):
+        self.bucket_name = bucket_name
+        if client is None:
+            client = storage.Client()
+        self.client = client
+        self.bucket = self.client.get_bucket(self.bucket_name)
+
+    def create(self, name):
+        return store.RAMFile(name, self)
+
+    def open(self, name, *args, **kwargs):
+        blob = self.bucket.get_blob(name)
+        if blob is None:
+            raise store.NoSuchFileError(f"No file found with the name: {name}")
+        return store.RAMFile(blob.download_as_bytes(), self)
+
+    def list(self):
+        return [blob.name for blob in self.bucket.list_blobs()]
+
+    def remove(self, name):
+        blob = self.bucket.get_blob(name)
+        if blob is not None:
+            blob.delete()
+
+    def rename(self, src, dest):
+        src_blob = self.bucket.get_blob(src)
+        if src_blob is None:
+            raise store.NoSuchFileError(f"No file found with the name: {src}")
+
+        self.bucket.copy_blob(src_blob, self.bucket, new_name=dest)
+        src_blob.delete()
+
+    def exists(self, name):
+        return self.bucket.get_blob(name) is not None
+
+    def _path(self, name):
+        return f"gs://{self.bucket_name}/{name}"
+
 
 def proc_img(filepath):
     """ Create a DataFrame with the filepath and the labels of the pictures
@@ -125,9 +163,18 @@ def settings(filename='project_cook/data/full_dataset.csv'):
     """
     Sets the index for recipes search.
     """
-    if os.path.exists("new_index"):
-        ix = index.open_dir("new_index")
+    # if os.path.exists("new_index"):
+    #     ix = index.open_dir("new_index")
+    #     return ix
+
+    bucket_name = "whatcanicook_v1nc3nz00"
+    storage_obj = GoogleCloudStorage(bucket_name)
+
+    try:
+        ix = index.open_dir(storage_obj)
         return ix
+    except index.EmptyIndexError:
+        ix = None
 
     # Define the schema of the index
     my_schema = Schema(title=TEXT(stored=True),
@@ -138,8 +185,9 @@ def settings(filename='project_cook/data/full_dataset.csv'):
                        NER=TEXT(stored=True))
 
     # # Create the index or open it if it already exists
-    os.mkdir("new_index")
-    ix = index.create_in("new_index", my_schema)
+    # os.mkdir("new_index")
+    # ix = index.create_in("new_index", my_schema)
+    ix = index.create_in(storage_obj, my_schema)
 
     # Set the chunk size
     chunk_size = 10000
@@ -224,23 +272,6 @@ def search_recipes(search_term, lang):
     return recipes
 
 
-
-def transcribe_audio(file, lang='en'):
-    """
-    Decodes an audio file into text.
-    """
-    model = whisper.load_model("base")
-    result = model.transcribe(file, language=lang, task="translate", fp16=False)
-    prediction = result['text'].split()
-    transl = []
-    if lang == 'en':
-        transl = prediction
-    else:
-        for x in prediction:
-            transl.append(translate_text(x, lang))
-    return {'prediction': prediction, 'translation': transl}
-
-
 def translate_text(text, target_language="en"):
     """
     Translation function.
@@ -252,7 +283,7 @@ def translate_text(text, target_language="en"):
 
 if __name__ == '__main__':
     try:
-        print(transcribe_audio())
+        settings()
     except:
         import sys
         import traceback
