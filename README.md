@@ -1,21 +1,11 @@
-# Cooking-Project
+# Project Cook
 
+_Final project for Le Wagon Data Science bootcamp._
 
-## How to Run Food Recognition Project
+![Project Cook Banner](images/project-cook-slide-0.png)
 
-1. Make sure you have an NVidia graphics card which supports CUDA
-1. Install the CUDA drivers
-1. Fix requirements.txt to add missing dependencies
-1. pip install -e .
-1. Re-install pytorch using instructions from their website
-1. Run `flask run --no-reload` to prevent app from restarting while running detection
+![User Journey](images/project-cook-slide-4.png)
 
+![Data Set](images/project-cook-slide-5.png)
 
-
-# Images for test
-## Train folder.
-Tomato image 17
-Pear image 12
-Banana image 1
-Onion image 1
-Carrot image 1
+![Extra Features](images/project-cook-slide-6.png)
