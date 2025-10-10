@@ -1,243 +1,328 @@
+"""Core logic powering the Project Cook interfaces.
+
+This module exposes small, dependency-light helpers that can be reused by the
+FastAPI service, the Streamlit front-end or any other integration.  The
+previous implementation eagerly imported heavy optional dependencies and
+expected local assets (model weights, datasets and indices) to always be
+available.  That behaviour made deployments brittle.  The refactor below keeps
+those dependencies optional, performs lazy loading and provides helpful error
+messages so the application can run in a variety of environments (including a
+fresh Streamlit deployment).
+"""
+
+from __future__ import annotations
+
+import csv
+import json
 import os
-import pickle
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
+from typing import Dict, Iterator, List, Optional
 
 import numpy as np
-import pandas as pd
-import tensorflow as tf
-import whoosh.index as index
-from google.cloud import storage
-from googletrans import LANGUAGES, Translator
-from keras.applications.vgg16 import preprocess_input
 from PIL import Image
-from tensorflow.keras import optimizers
-from tensorflow.keras.applications.vgg16 import preprocess_input
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
-from whoosh import index
-from whoosh.fields import *
-from whoosh.fields import KEYWORD, TEXT, Schema
+from whoosh import index as whoosh_index
+from whoosh.fields import ID, KEYWORD, Schema, TEXT
 from whoosh.qparser import QueryParser
 
-from project_cook.logic.clean_text import *
+from project_cook.logic.clean_text import basic_cleaning, remove_punctuation, remove_words
 
-def proc_img(filepath):
-    """ Create a DataFrame with the filepath and the labels of the pictures
+try:  # The translator is entirely optional.
+    from googletrans import Translator as _GoogleTranslator
+except ImportError:  # pragma: no cover - dependency not installed by default.
+    _GoogleTranslator = None  # type: ignore
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+IMAGE_SIZE = int(os.getenv("COOK_IMAGE_SIZE", "224"))
+MODEL_PATH = Path(os.getenv("COOK_MODEL_PATH", "notebooks/model.h5"))
+LABELS_PATH_RAW = os.getenv("COOK_LABELS_PATH", "")
+LABELS_PATH = Path(LABELS_PATH_RAW) if LABELS_PATH_RAW else None
+TRAIN_IMAGE_DIR = Path(os.getenv("COOK_TRAIN_IMAGE_DIR", "notebooks/images/train"))
+INDEX_DIR = Path(os.getenv("COOK_INDEX_DIR", "new_index"))
+DATASET_PATH = Path(
+    os.getenv("COOK_DATASET_PATH", "project_cook/data/full_dataset.csv"))
+INDEX_CHUNK_SIZE = int(os.getenv("COOK_INDEX_CHUNK_SIZE", "10000"))
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _load_label_lookup() -> Dict[int, str]:
+    """Return a mapping between numeric class indices and human readable labels.
+
+    The mapping is inferred in three different ways (in order of priority):
+
+    1. From a JSON file referenced via ``COOK_LABELS_PATH``.  This allows
+       deployments to ship a simple ``["class_a", "class_b"]`` payload
+       alongside the model.
+    2. From the ``notebooks/images/train`` directory (or the directory pointed
+       to by ``COOK_TRAIN_IMAGE_DIR``) by scanning the folder names.  This
+       mirrors ``ImageDataGenerator``'s behaviour which sorts directory names.
+    3. When neither of the above are available, the mapping is empty and we fall
+       back to synthetic ``class_<index>`` labels.
     """
 
-    labels = [str(filepath[i]).split("/")[-2] \
-              for i in range(len(filepath))]
+    if LABELS_PATH and LABELS_PATH.exists():
+        try:
+            payload = json.loads(LABELS_PATH.read_text())
+        except json.JSONDecodeError:
+            pass
+        else:
+            if isinstance(payload, dict):
+                lookup: Dict[int, str] = {}
+                for key, value in payload.items():
+                    try:
+                        lookup[int(key)] = str(value)
+                    except ValueError:
+                        continue
+                if lookup:
+                    return lookup
+            if isinstance(payload, list):
+                return {idx: str(label) for idx, label in enumerate(payload)}
 
-    filepath = pd.Series(filepath, name='Filepath').astype(str)
-    labels = pd.Series(labels, name='Label')
+    if TRAIN_IMAGE_DIR.exists():
+        class_names = sorted(
+            entry.name for entry in TRAIN_IMAGE_DIR.iterdir() if entry.is_dir())
+        if class_names:
+            return {idx: name for idx, name in enumerate(class_names)}
 
-    # Concatenate filepaths and labels
-    df = pd.concat([filepath, labels], axis=1)
-
-    # Shuffle the DataFrame and reset index
-    df = df.sample(frac=1).reset_index(drop=True)
-
-    return df
+    return {}
 
 
+@lru_cache(maxsize=1)
+def _get_translator() -> Optional[_GoogleTranslator]:
+    if _GoogleTranslator is None:  # pragma: no cover - optional dependency
+        return None
+    return _GoogleTranslator()
+
+
+def _iter_dataset_rows(dataset_path: Path) -> Iterator[Dict[str, str]]:
+    """Yield rows from the CSV dataset as dictionaries.
+
+    The historical dataset ships with an initial identifier column, therefore we
+    gracefully handle both ``DictReader`` friendly CSV files (with explicit
+    headers) and raw files without headers.
+    """
+
+    if not dataset_path.exists():
+        return
+
+    with dataset_path.open(newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        headers = next(reader, None)
+
+    if headers and {'title', 'ingredients', 'directions'}.issubset(set(headers)):
+        with dataset_path.open(newline='', encoding='utf-8') as file:
+            keyed_reader = csv.DictReader(file)
+            for row in keyed_reader:
+                yield {
+                    'title': row.get('title', ''),
+                    'ingredients': row.get('ingredients', ''),
+                    'directions': row.get('directions', ''),
+                    'link': row.get('link', ''),
+                    'source': row.get('source', ''),
+                    'NER': row.get('NER', ''),
+                }
+        return
+
+    # Fall back to manual positional extraction using the previously read header.
+    if headers is not None and len(headers) >= 6:
+        yield {
+            'title': headers[1] if len(headers) > 1 else '',
+            'ingredients': headers[2] if len(headers) > 2 else '',
+            'directions': headers[3] if len(headers) > 3 else '',
+            'link': headers[4] if len(headers) > 4 else '',
+            'source': headers[5] if len(headers) > 5 else '',
+            'NER': headers[6] if len(headers) > 6 else '',
+        }
+
+    with dataset_path.open(newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        next(reader, None)  # Skip the first row that we've already processed.
+        for row in reader:
+            if len(row) < 6:
+                continue
+            yield {
+                'title': row[1] if len(row) > 1 else '',
+                'ingredients': row[2] if len(row) > 2 else '',
+                'directions': row[3] if len(row) > 3 else '',
+                'link': row[4] if len(row) > 4 else '',
+                'source': row[5] if len(row) > 5 else '',
+                'NER': row[6] if len(row) > 6 else '',
+            }
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
 def get_model():
-    """
-    Returns the model and the train_images for labels.
-    """
-    train_dir = Path("notebooks/images/train")
-    train_filepaths = list(train_dir.glob(r'**/*.jpg'))
-    train_df = proc_img(train_filepaths)
-    train_generator = tf.keras.preprocessing.image.ImageDataGenerator(
-        preprocessing_function=tf.keras.applications.mobilenet_v2.
-        preprocess_input)
+    """Load and compile the TensorFlow model lazily.
 
-    train_images = train_generator.flow_from_dataframe(
-        dataframe=train_df,
-        x_col='Filepath',
-        y_col='Label',
-        target_size=(224, 224),
-        color_mode='rgb',
-        class_mode='categorical',
-        batch_size=32,
-        shuffle=True,
-        seed=0,
-        rotation_range=30,
-        zoom_range=0.15,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.15,
-        horizontal_flip=True,
-        fill_mode="nearest")
+    The function caches the model instance to avoid repeated disk reads when the
+    Streamlit app receives multiple requests.  A ``RuntimeError`` with a helpful
+    message is raised if TensorFlow is not installed or if the model file is
+    missing.
+    """
 
-    model = load_model('notebooks/model.h5', compile=False)
-    opt = optimizers.Adam(learning_rate=1e-4)
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(
+            f"Could not locate the model at '{MODEL_PATH}'. Set COOK_MODEL_PATH to the"
+            " correct location before making predictions.")
+
+    try:  # Lazy import to avoid importing TensorFlow during Streamlit boot.
+        from tensorflow.keras import optimizers
+        from tensorflow.keras.models import load_model
+    except ImportError as exc:  # pragma: no cover - heavy optional dependency
+        raise RuntimeError(
+            "TensorFlow is required to load the cooking model. Install it by"
+            " adding 'tensorflow' to your requirements or by running 'pip install"
+            " tensorflow'.") from exc
+
+    model = load_model(str(MODEL_PATH), compile=False)
     model.compile(loss='categorical_crossentropy',
-                  optimizer=opt,
+                  optimizer=optimizers.Adam(learning_rate=1e-4),
                   metrics=['accuracy'])
-    return model, train_images
+    return model
 
 
-def pred_streamlit(user_input, lang):
+def pred_streamlit(user_input: bytes, lang: str) -> Dict[str, List[str]]:
+    """Generate predictions for an uploaded image.
+
+    Parameters
+    ----------
+    user_input:
+        Raw bytes coming from an uploaded image.
+    lang:
+        Target language code.  When translation is not available the original
+        English labels are returned.
     """
-    Make a prediction using the latest trained model, using a single image as input
-    """
-    image = Image.open(BytesIO(user_input))
 
-    # Resize to 224 x 224
-    image = image.resize((224, 224))
+    try:  # Lazy import – keeps Streamlit's initial footprint minimal.
+        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+        from tensorflow.keras.preprocessing.image import img_to_array
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError(
+            "TensorFlow is required to run image predictions. Install it via"
+            " pip or ensure it is present in your environment.") from exc
 
-    # Convert the image pixels to a numpy array
-    image = img_to_array(image)
+    image = Image.open(BytesIO(user_input)).convert("RGB")
+    image = image.resize((IMAGE_SIZE, IMAGE_SIZE))
+    image_array = img_to_array(image)
+    image_array = np.expand_dims(image_array, axis=0)
+    image_array = preprocess_input(image_array)
 
-    # Reshape data for the model
-    image = image.reshape((1, 224, 224, 3))
+    model = get_model()
+    prediction_scores = model.predict(image_array)
+    predicted_probabilities = np.argmax(prediction_scores, axis=1)
 
-    # Prepare the image for the VGG model
-    image = preprocess_input(image)
-    print(f"type after preprocess_input: {type(image)}")
+    labels = _load_label_lookup()
+    predictions = [labels.get(idx, f"class_{idx}") for idx in predicted_probabilities]
 
-    # Run prediction
-    model, train_images = get_model()
-    opt = optimizers.Adam(learning_rate=1e-4)
-    model.compile(loss='categorical_crossentropy',
-                  optimizer=opt,
-                  metrics=['accuracy'])
-    result = model.predict(image)
-    predicted_probabilities = np.argmax(result, axis=1)
-    labels = (train_images.class_indices)
-    labels = dict((v, k) for k, v in labels.items())
-
-    prediction = [labels[k] for k in predicted_probabilities]
     if lang == 'en':
-        transl = prediction
+        translations = predictions
     else:
-        transl = [
-            translate_text(labels[k], lang) for k in predicted_probabilities
-        ]
-    return {'prediction': prediction, 'translation': transl}
+        translations = [translate_text(label, lang) for label in predictions]
+
+    return {'prediction': predictions, 'translation': translations}
 
 
-def settings(filename='project_cook/data/full_dataset.csv'):
-    """
-    Sets the index for recipes search.
-    """
-    if os.path.exists("new_index"):
-        ix = index.open_dir("new_index")
-        return ix
+def settings(filename: str | os.PathLike[str] = DATASET_PATH
+             ) -> Optional[whoosh_index.Index]:
+    """Return (and build when necessary) the search index used by Whoosh."""
 
-    # Define the schema of the index
-    my_schema = Schema(title=TEXT(stored=True),
-                       ingredients=KEYWORD(stored=True, commas=True),
-                       directions=TEXT(stored=True),
-                       link=ID(stored=True),
-                       source=TEXT(stored=True),
-                       NER=TEXT(stored=True))
+    dataset_path = Path(filename)
+    if not dataset_path.exists():
+        return None
 
-    # # Create the index or open it if it already exists
-    os.mkdir("new_index")
-    ix = index.create_in("new_index", my_schema)
+    if whoosh_index.exists_in(str(INDEX_DIR)):
+        return whoosh_index.open_dir(str(INDEX_DIR))
 
-    # Set the chunk size
-    chunk_size = 10000
+    INDEX_DIR.mkdir(parents=True, exist_ok=True)
+    schema = Schema(title=TEXT(stored=True),
+                    ingredients=KEYWORD(stored=True, commas=True),
+                    directions=TEXT(stored=True),
+                    link=ID(stored=True),
+                    source=TEXT(stored=True),
+                    NER=TEXT(stored=True))
 
-    # Index the dataset in chunks
-    writer = ix.writer()
-    with open(filename) as f:
-        next(f)  # Skip the header row
-        lines = []
-        for line in f:
-            line = line.strip().split(',')
-            if len(line) == 7:
-                lines.append(line)
-            if len(lines) == chunk_size:
-                for l in lines:
-                    writer.add_document(title=l[1],
-                                        ingredients=l[2],
-                                        directions=l[3],
-                                        link=l[4],
-                                        source=l[5],
-                                        NER=l[6])
-                lines = []
-                writer.commit()
-                writer = ix.writer()
-        # Add any remaining lines
-        for l in lines:
-            writer.add_document(title=l[1],
-                                ingredients=l[2],
-                                directions=l[3],
-                                link=l[4],
-                                source=l[5],
-                                NER=l[6])
-        writer.commit()
+    ix = whoosh_index.create_in(str(INDEX_DIR), schema)
+    writer = ix.writer(limitmb=256)
 
+    buffer: List[Dict[str, str]] = []
+    for row in _iter_dataset_rows(dataset_path):
+        buffer.append(row)
+        if len(buffer) >= INDEX_CHUNK_SIZE:
+            for entry in buffer:
+                writer.add_document(**entry)
+            buffer = []
+
+    for entry in buffer:
+        writer.add_document(**entry)
+    writer.commit()
     return ix
 
 
-def search_recipes(search_term, lang):
-    """
-    Search recipes.
+def search_recipes(search_term: str, lang: str) -> List[Dict[str, str]]:
+    """Search the indexed recipes using a user provided query."""
 
-    Args:
-        search_term (_type_): the search term(s), e,g. 'apple pear cinnamon'
-        lang (_type_): language code, e.g. 'en'
-    """
-
-    # Clean the terms.
-    search_term = basic_cleaning(search_term)
-    search_term = remove_punctuation(search_term)
-    search_term = remove_words(search_term)
+    cleaned_term = remove_words(remove_punctuation(basic_cleaning(search_term)))
 
     ix = settings()
-    # Create a QueryParser for the "NER" field
-    qp = QueryParser("NER", schema=ix.schema)
-    q = qp.parse(search_term)
+    if ix is None:
+        return []
 
-    # Search the index and get the results
-    recipes = []
+    qp = QueryParser("NER", schema=ix.schema)
+    q = qp.parse(cleaned_term)
+
+    recipes: List[Dict[str, str]] = []
     with ix.searcher() as searcher:
-        results = searcher.search(q)
-        # Print the results
+        results = searcher.search(q, limit=None)
         for result in results:
-            if lang == 'en':
+            hit = {
+                'NER': result['NER'],
+                'directions': result['directions'],
+                'ingredients': result['ingredients'],
+                'link': result['link'],
+                'source': result['source'],
+                'title': result['title'],
+            }
+            if lang != 'en':
                 hit = {
-                    'NER': result['NER'],
-                    'directions': result['directions'],
-                    'ingredients': result['ingredients'],
-                    'link': result['link'],
-                    'source': result['source'],
-                    'title': result['title'],
-                }
-            else:
-                hit = {
-                    'NER': translate_text(result['NER'], lang),
-                    'directions': translate_text(result['directions'], lang),
-                    'ingredients': translate_text(result['ingredients'], lang),
-                    'link': result['link'],
-                    'source': result['source'],
-                    'title': translate_text(result['title'], lang),
+                    'NER': translate_text(hit['NER'], lang),
+                    'directions': translate_text(hit['directions'], lang),
+                    'ingredients': translate_text(hit['ingredients'], lang),
+                    'link': hit['link'],
+                    'source': hit['source'],
+                    'title': translate_text(hit['title'], lang),
                 }
             recipes.append(hit)
     return recipes
 
 
-def translate_text(text, target_language="en"):
-    """
-    Translation function.
-    """
-    translator = Translator()
-    translation = translator.translate(text, dest=target_language)
+def translate_text(text: str, target_language: str = 'en') -> str:
+    """Translate ``text`` into ``target_language`` when possible."""
+
+    if target_language == 'en':
+        return text
+
+    translator = _get_translator()
+    if translator is None:  # pragma: no cover - optional dependency
+        return text
+
+    try:
+        translation = translator.translate(text, dest=target_language)
+    except Exception:  # pragma: no cover - API/network errors should not crash the app
+        return text
     return translation.text
 
 
-if __name__ == '__main__':
-    try:
-        settings()
-    except:
-        import sys
-        import traceback
-
-        import ipdb
-        extype, value, tb = sys.exc_info()
-        traceback.print_exc()
-        ipdb.post_mortem(tb)
+__all__ = ['get_model', 'pred_streamlit', 'search_recipes', 'settings', 'translate_text']
